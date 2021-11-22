@@ -12,11 +12,9 @@ Autumn 2021
 **Team**  
 * Marcel Cases
 &lt;marcel.cases@estudiantat.upc.edu&gt;
-* Antoni Casas
-&lt;antoni.casas.munoz@estudiantat.upc.edu&gt;
+* Quim Aguado
+&lt;quim.aguado@estudiantat.upc.edu&gt;
 
 ## Sessions
 
-**Lab 1** [**Quadratic-time Robinson-Foulds distance between two phylogenetic trees**](robinson-foulds-quadratic-time/main.ipynb)
-
-**Lab 2** [**Linear-time Robinson-Foulds distance between two phylogenetic trees**](robinson-foulds-linear-time/main.ipynb)
+**Practical 01 SG** [**Descriptive analysis of genetic markers**](1-introduction/main.rmd)
