@@ -1,6 +1,6 @@
 # Statistical Genetics laboratory sessions
 
-Assignments of Bioinformatics and Statistical Genetics
+Assignments of Statistical Genetics
 
 ## About
 
@@ -18,3 +18,5 @@ Autumn 2021
 ## Sessions
 
 **Practical 01 SG** [**Descriptive analysis of genetic markers**](1-introduction/main.rmd)
+
+**Practical 02 SG** [**Hardy-Weinberg equilibrium**](2-hardy-weinberg-equilibrium/main.rmd)

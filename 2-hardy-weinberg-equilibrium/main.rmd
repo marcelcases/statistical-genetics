@@ -1,0 +1,347 @@
+---
+title: "Practical 02 SG: Hardy-Weinberg equilibrium"
+author: "Quim Aguado, Marcel Cases"
+date: "27-Nov-2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+library(HardyWeinberg)
+library(dplyr)
+```
+
+```{r, include=FALSE}
+#.rs.restartR()
+rm(list=ls())
+```
+
+**Ex 1** Load *TSIChr22v4* data into R using `fread`. Ignore the first 6 columns.
+
+```{r}
+filename <- "TSIChr22v4.raw"
+dt <- fread(filename, header=TRUE) # class data.table
+dt <- dt[, 7:ncol(dt)]
+#dt <- dt[, 7:10006] # treballem amb un sample
+#df <- as.data.frame(dt) # transform data.table into data.frame to work more efficiently
+```
+
+**Ex 2** How many individuals does the database contain, and how many variants? What percentage of the variants is monomorphic? Remove all monomorphic SNPs from the database. How many variants remain in the database?
+
+```{r}
+n <- nrow(dt) # number of individuals
+n
+p <- ncol(dt) # number of variants
+p
+
+```
+
+The original database contains 107 individuals and 1102156 variants.
+
+```{r}
+dt_poly = dt %>% # remove monomorphics efficiently
+  select(where(~n_distinct(.) > 1))
+
+#monom <- (dt[,2]==0 & dt[,1]==0) | (dt[,2]==0 & dt[,3]==0)
+#dt_poly <- dt[!monom,] # exclude monomorphics
+
+monomorphic.num <- ncol(dt)-ncol(dt_poly)
+perc.monomorphic <- 100*monomorphic.num/(ncol(dt))
+perc.monomorphic
+
+ncol(dt_poly) #remaining (polymorphic) variants
+```
+
+The 81.03% of the original database contain monomorphic variants. After removing them, the database contains 209074 variants.
+
+At this time, we recode (0,1,2) into (AA,AB,BB).
+
+```{r}
+dt_poly <- as.data.table(lapply(dt_poly, function(x){replace(x, x == 0, "AA")}))
+dt_poly <- as.data.table(lapply(dt_poly, function(x){replace(x, x == 1, "AB")}))
+dt_poly <- as.data.table(lapply(dt_poly, function(x){replace(x, x == 2, "BB")}))
+dt_poly <- as.data.frame(dt_poly)
+```
+
+**Ex 3** Extract polymorphism rs587756191_T from the datamatrix, and determine its genotype counts. Apply a chi-square test for Hardy-Weinberg equilibrium, with and without continuity correction. Also try an exact test, and a permutation test. You can use function HWChisq, HWExact and HWPerm for this purpose. Do you think this variant is in equilibrium? Argue your answer.
+
+```{r}
+rs587756191_T <- dt_poly[,c("rs587756191_T")]
+rs587756191_T.count <- c( sum(rs587756191_T=="AA"),
+                          sum(rs587756191_T=="AB"),
+                          sum(rs587756191_T=="BB")
+                          )
+names(rs587756191_T.count) <- c("AA", "AB", "BB")
+rs587756191_T.count
+```
+
+Genotype counts:
+* AA -> 106
+* AB -> 1
+
+```{r}
+results.chi <- HWChisq(rs587756191_T.count)
+```
+
+```{r}
+results.chi.nocor <- HWChisq(rs587756191_T.count,cc=0) # test without correction
+```
+
+
+```{r}
+results.exact <- HWExact(rs587756191_T.count)
+```
+
+
+```{r}
+results.perm <- HWPerm(rs587756191_T.count)
+#HWAlltests(x,include.permutation.test=TRUE) # consistent values -> cannot reject equilibrium
+```
+
+We cannot reject equilibrium of the variant rs587756191_T, given that all the tests (except for HWChisq without correction) compute a p-value around the same value.
+
+**Ex 4** Determine the genotype counts for all these variants, and store them in a p × 3 matrix.
+
+```{r}
+geno.matrix <- matrix(nrow=ncol(dt_poly), ncol=3)
+
+for(i in 1:ncol(dt_poly)) {
+  geno.matrix[i,1] <- sum(dt_poly[,i]=="AA")
+  geno.matrix[i,2] <- sum(dt_poly[,i]=="AB")
+  geno.matrix[i,3] <- sum(dt_poly[,i]=="BB")
+}
+
+#geno.matrix
+```
+
+**Ex 5** Apply a chi-square test without continuity correction for Hardy-Weinberg equilibrium to each SNP. You can use HWChisqStats for this purpose. How many SNPs are significant (use alpha = 0.05)?
+
+```{r}
+geno.matrix.chisq.stats <- HWChisqStats(geno.matrix,pvalues = FALSE)
+geno.matrix.chisq.pval <- HWChisqStats(geno.matrix,pvalues = TRUE)
+significant.snp.num.chisq <- sum(geno.matrix.chisq.pval<0.05) # number of significant SNPs
+significant.snp.num.chisq
+plot(density(geno.matrix.chisq.stats))
+```
+
+8152 SNPs are significant.
+
+**Ex 6** How many markers of the remaining non-monomorphic markers would you expect to be out of equilibrium by the effect of chance alone?
+
+
+
+**Ex 7** Which SNP is most significant according to the chi-square test results? Give its genotype counts. In which sense is this genotypic composition unusual?
+
+```{r}
+geno.matrix.chisq.most <- max(geno.matrix.chisq.pval) # most significant SNP
+geno.matrix.chisq.most
+```
+
+```{r}
+chisq.index <- which(geno.matrix.chisq.pval==max(geno.matrix.chisq.pval)) # index of the most significant SNPs
+names(dt_poly[chisq.index[1]]) # SNP name
+```
+
+```{r}
+geno.matrix[chisq.index[1],] # counts of the most significant SNP
+#...
+```
+
+```{r}
+sum(geno.matrix.chisq.pval==max(geno.matrix.chisq.pval)) # repetitions of the most significant SNPs
+```
+
+This genotypic composition is unusual because it only appears 117 times in the whole the dataset.
+
+**Ex 8** Apply an Exact test for Hardy-Weinberg equilibrium to each SNP. You can use function HWExactStats for fast computation. How many SNPs are significant (use alpha = 0.05). Is the result consistent with the chi-square test?
+
+```{r}
+geno.matrix.exact.stats <- HWExactStats(geno.matrix, pvalues = FALSE)
+geno.matrix.exact.pval <- HWExactStats(geno.matrix, pvalues = TRUE)
+significant.snp.num.exact <- sum(geno.matrix.exact.pval<0.05)
+#plot(density(geno.matrix.exact.stats))
+
+significant.snp.num.chisq
+significant.snp.num.exact
+```
+
+The amount of significant p-values/SNPs under Chi Square and Exact tests are similar considering the larg size of the dataset, so the results are consistent.
+
+**Ex 9** Which SNP is most significant according to the exact test results? Give its genotype counts. In which sense is this genotypic composition unusual?
+
+```{r}
+geno.matrix.exact.most <- max(geno.matrix.exact.pval) # most significant SNP
+geno.matrix.exact.most
+```
+
+```{r}
+exact.index <- which(geno.matrix.exact.pval==max(geno.matrix.exact.pval)) # index of the most significant SNPs
+names(dt_poly[exact.index[1]])
+```
+
+```{r}
+geno.matrix[exact.index[1],] # counts of the most significant SNP
+#...
+```
+
+```{r}
+sum(geno.matrix.exact.pval==max(geno.matrix.exact.pval)) # repetitions of the most significant SNPs
+```
+
+This genotype composition is not unusual. It appears many times in the dataset.
+
+**Ex 10** Apply a likelihood ratio test for Hardy-Weinberg equilibrium to each SNP, using the HWLratio function. How many SNPs are significant (use alpha = 0.05). Is the result consistent with the chi-square test?
+
+```{r}
+geno.matrix.like.pval <- c()
+for(i in 1:ncol(dt_poly)) {
+  snp <- geno.matrix[i,]
+  names(snp) <- c("AA", "AB", "BB")
+  geno.matrix.like.pval <- c(geno.matrix.like.pval, HWLratio(snp,verbose = FALSE)$pval)
+}
+significant.snp.num.like <- sum(geno.matrix.like.pval<0.05)
+
+significant.snp.num.chisq
+significant.snp.num.like
+```
+
+The amount of significant p-values/SNPs under Chi Square and Likelihood tests are similar, so the results are consistent.
+
+**Ex 11** Apply a permutation test for Hardy-Weinberg equilibrium to the first 10 SNPs, using the classical chi-square test (without continuity correction) as a test statistic. List the 10 p-values, together with the 10 p-values of the exact tests. Are the result consistent?
+
+```{r}
+geno.matrix.perm.pval = c()
+for(i in 1:10) {
+  snp <- geno.matrix[i,]
+  names(snp) <- c("AA", "AB", "BB")
+  geno.matrix.perm.pval <- c(geno.matrix.perm.pval,HWPerm(snp, verbose = FALSE)$pval)
+}
+
+geno.matrix.perm.pval
+geno.matrix.exact.pval[1:10]
+
+```
+
+The results are quite consistent in most of the tests. P-values are similar except for the 5th SNP.
+
+**Ex 12** Depict all SNPs simultaeneously in a ternary plot with function HWTernaryPlot and comment on your result (because many genotype counts repeat, you may use UniqueGenotypeCounts to speed up the computations)
+
+```{r}
+#geno.matrix.unique <- UniqueGenotypeCounts(geno.matrix)
+#geno.matrix.unique
+HWTernaryPlot(geno.matrix)
+```
+
+Some SNPs are within the acceptance region (equilibrium), but others are in disequilibrium. The SNP dataset seems to be in disequilibrium. 
+
+**Ex 13** Can you explain why half of the ternary diagram is empty?
+
+The ternary diagram is half-empty, which means that the allele B does not influence the frequency/ratio in which the SNPs appear (AA or AB).
+
+**Ex 14** Make a histogram of the p-values obtained in the chi-square test. What distribution would you expect if HWE would hold for the data set? Make a Q-Q plot of the p values obtained in the chi-square test against the quantiles of the distribution that you consider relevant. What is your conclusion?
+
+```{r}
+hist(geno.matrix.chisq.pval)
+```
+
+If the dataset was in HW equilibrium, we would obtain a normal distribution.
+
+```{r}
+#plot(density(geno.matrix.chisq.pval))
+#hist(geno.matrix.chisq.pval,breaks=30)
+qqnorm(geno.matrix.chisq.pval)
+```
+
+
+
+**Ex 15** Imagine that for a particular marker the counts of the two homozygotes are accidentally interchanged. Would this affect the statistical tests for HWE? Try it on the computer if you want. Argue your answer.
+
+```{r}
+x <- geno.matrix[9,]
+names(x) <- c("AA", "AB", "BB")
+HWAlltests(x,include.permutation.test=TRUE)
+```
+
+```{r}
+x <- rev(geno.matrix[9,])
+names(x) <- c("AA", "AB", "BB")
+HWAlltests(x,include.permutation.test=TRUE)
+```
+
+Swapping the homozygotes does not change significantly the results of the tests. Homozygotes are assigned names randomly, no matter the order.
+
+**Ex 16** Compute the inbreeding coefficient (^f) for each SNP, and make a histogram of ^f. You can use function HWf for this purpose. Give descriptive statistics (mean, standard deviation, etc) of ^f calculated over the set of SNPs. What distribution do you expect ^f to follow theoretically? Use a probability plot to confirm your idea.
+
+```{r}
+f.coef <- c()
+for(i in 1:ncol(dt_poly)) {
+  x <- geno.matrix[i,]
+  names(x) <- c("AA", "AB", "BB")
+  f.coef <- c(f.coef,HWf(x))
+}
+
+hist(f.coef,breaks=10)
+```
+
+```{r}
+f.coef.stats <- sapply(f.coef,mean)
+summary(f.coef.stats)
+sd(f.coef)
+```
+
+```{r}
+plot(density(f.coef))
+```
+
+We expect a normal distribution as we got (standard deviation is low).
+
+**Ex 17** Make a plot of the observed chi-square statistics against the inbreeding coefficient ( ^f). What do you observe? Can you give an equation that relates the two statistics?
+
+```{r}
+fit<-lm(geno.matrix.chisq.stats~poly(f.coef,2,raw=TRUE))
+#summary(fit)
+
+quadratic = fit$coefficient[3]*f.coef^2 + fit$coefficient[2]*f.coef + fit$coefficient[1]
+plot(f.coef,geno.matrix.chisq.stats)
+```
+
+```{r}
+summary(fit)$coefficient[3]
+summary(fit)$coefficient[2]
+summary(fit)$coefficient[1]
+```
+
+The plot follows a quadratic correlation.
+The quadratic equation that relates the inbreeding coefficient with the observed chi-square is:
+f(x) = 107x^2,
+where the observed chi-square is a function of the the inbreeding coefficient.
+
+**Ex 18** We reconsider the exact test for HWE, using different significant levels. Report the number and percentage of significant variants using an exact test for HWE with alpha = 0.10, 0.05, 0.01 and 0.001. State your conclusions.
+
+```{r}
+alpha_i <- c(0.10, 0.05, 0.01, 0.001)
+significant.snp.num.exact.alphai <- c()
+
+for(i in alpha_i) {
+  significant.snp.num.exact.alphai <- c(significant.snp.num.exact.alphai, sum(geno.matrix.exact.pval<i))
+}
+
+significant.snp.perc.exact.alphai <- 100*significant.snp.num.exact.alphai/length(geno.matrix.exact.pval)
+
+alpha_i
+significant.snp.num.exact.alphai
+significant.snp.perc.exact.alphai
+```
+
+We consider:
+* p >  0.05  -> Not significant, no evidence against the null hypothesis
+* p <= 0.05  -> Significant, weak to moderate evidence of the null hypothesis
+* p <= 0.01  -> Very significant, good to strong evidence of the null hypothesis
+* p <= 0.001 -> Highly significant, very strong evidence of the null hypothesis
+
+With the results obtained with the different significant levels, we conclude that ~2.77% of the SNPs in the dataset are significant, ~1.19% of the SNPs in the dataset are very significant, and ~0.71% of the SNPs in the dataset are highly significant.
+
+
+
+
