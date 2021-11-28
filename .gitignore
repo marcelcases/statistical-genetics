@@ -1,6 +1,9 @@
 *.pdf
 *.zip
 *.raw
+*.RData
+*.Rhistory
 Script*
 /ref/*
+*/old/*
 P*.Rmd
