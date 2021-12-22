@@ -17,12 +17,22 @@ Autumn 2021
 
 ## Sessions
 
-**Practical 01 SG** [**Descriptive analysis of genetic markers**](1-introduction/main.rmd)
+**Lab 01** Descriptive analysis of genetic markers  
+[report](1-introduction/main.pdf) |
+[source](1-introduction/main.rmd)
 
-**Practical 02 SG** [**Hardy-Weinberg equilibrium**](2-hardy-weinberg-equilibrium/main.rmd)
+**Lab 02** Hardy-Weinberg equilibrium  
+[report](2-hardy-weinberg-equilibrium/main.pdf) |
+[source](2-hardy-weinberg-equilibrium/main.rmd)
 
-**Practical 03 SG** [**Linkage Disequilibrium and Haplotype estimation**](3-linkage-disequilibrium/main.rmd)
+**Lab 03** Linkage Disequilibrium and Haplotype estimation  
+[report](3-linkage-disequilibrium/main.pdf) |
+[source](3-linkage-disequilibrium/main.rmd)
 
-**Practical 04 SG** [**Population substructure**](4-substructure/main.rmd)
+**Lab 04** Population substructure  
+[report](4-substructure/main.pdf) |
+[source](4-substructure/main.rmd)
 
-**Practical 05 SG** [**Association analysis and Relatedness research**](5-association-relatedness/main.rmd)
+**Lab 05** Association analysis and Relatedness research  
+[report](5-association-relatedness/main.pdf) |
+[source](5-association-relatedness/main.rmd)
