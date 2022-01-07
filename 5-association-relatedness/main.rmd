@@ -1,0 +1,363 @@
+---
+title: "Practical 05 SG: Association analysis and Relatedness research"
+author: "Quim Aguado, Marcel Cases"
+date: "08-Jan-2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(genetics)
+library(MASS)
+library(data.table)
+```
+
+```{r, include=FALSE}
+#.rs.restartR()
+rm(list=ls())
+```
+
+# Association analysis
+
+**Ex 1** What is the sample size? What is the number of cases and the number of controls? Construct the contingency table of genotype by case/control status.
+
+```{r, cache=TRUE}
+df.aa <- read.table("rs394221.dat", header=FALSE)
+nrow(df.aa)
+ncol(df.aa)
+df.aa.cases.tot <- length(df.aa[,2][df.aa[,2]=="case"])
+df.aa.cases.tot
+df.aa.control.tot <- length(df.aa[,2][df.aa[,2]=="control"])
+df.aa.control.tot
+```
+
+* Sample size: 1167
+* Number of cases: 509
+* Number of controls: 658
+
+```{r, cache=TRUE}
+df.aa.cases <- c(length(df.aa[,2][df.aa[,2]=="case"&df.aa[,1]=="MM"]),
+                     length(df.aa[,2][df.aa[,2]=="case"&df.aa[,1]=="Mm"]),
+                     length(df.aa[,2][df.aa[,2]=="case"&df.aa[,1]=="mm"])
+                     )
+df.aa.controls <- c(length(df.aa[,2][df.aa[,2]=="control"&df.aa[,1]=="MM"]),
+                        length(df.aa[,2][df.aa[,2]=="control"&df.aa[,1]=="Mm"]),
+                        length(df.aa[,2][df.aa[,2]=="control"&df.aa[,1]=="mm"])
+                        )
+con.tab.geno <- rbind(df.aa.cases,df.aa.controls)
+rownames(con.tab.geno) <- c("Cases","Controls")
+colnames(con.tab.geno) <- c("MM","Mm","mm")
+con.tab.geno
+```
+
+**Ex 2** Explore the data by plotting the percentage of cases as a function of the genotype, ordering the latter according to the number of $M$ alleles. Which allele increases the risk of the disease?
+
+```{r, cache=TRUE}
+df.aa.cases.perc <- 100*df.aa.cases/df.aa.cases.tot
+bp <- barplot(df.aa.cases.perc,names.arg=c("MM","Mm","mm"),xlab="Alleles",ylab="perc.", main="Percentage of cases as a function of the genotype")
+text(x=bp,y=df.aa.cases.perc,label=round(df.aa.cases.perc,digits=2),pos=1)
+```
+
+The data follows a *co-dominant model*. The allele "Mm" has a higher risk of contracting the disease.
+
+**Ex 3** Test for equality of allele frequencies in cases and controls by doing an alleles test. Report the test statistic, its reference distribution, and the p-value of the test. Is there evidence for different allele frequencies?
+
+```{r, cache=TRUE}
+con.tab.allele <- cbind(2*con.tab.geno[,1]+con.tab.geno[,2],2*con.tab.geno[,3]+con.tab.geno[,2])
+colnames(con.tab.allele) <- c("M","m")
+con.tab.allele
+
+con.tab.allele.chisq <- chisq.test(con.tab.allele,correct=FALSE)
+con.tab.allele.chisq
+con.tab.allele.chisq$expected
+```
+
+* Reference distribution: Chi-square
+* p-value = 0.0002037
+
+Expected cases for allele M are lower compared to real cases, while expected cases for allele m are higher compared to real cases.
+
+**Ex 4** Which are the assumptions made by the alleles test? Perform and report any additional tests you consider adequate to verify the assumptions. Do you think the assumptions of the alleles test are met?
+
+```{r, cache=TRUE}
+fisher.test(con.tab.allele)
+or <- (con.tab.allele[1,1]*con.tab.allele[2,2])/(con.tab.allele[1,2]*con.tab.allele[2,1])
+or
+se.lor <- sqrt(sum(1/con.tab.allele))
+se.lor
+ll.logodds <- log(or) - qnorm(0.975)*se.lor
+ul.logodds <- log(or) + qnorm(0.975)*se.lor
+ll.odds <- exp(ll.logodds)
+ul.odds <- exp(ul.logodds)
+ll.odds
+ul.odds
+```
+
+**Ex 5** Perform the Armitage trend test for association between disease and number of $M$ alleles. Report the test statistic, its reference distribution and the p-value of the test. Do you find evidence for association?
+
+```{r, cache=TRUE}
+con.tab.geno
+df.aa.cases
+df.aa.controls
+df.aa.cases.rep <- rep(c(0,1,2),df.aa.cases)
+df.aa.controls.rep <- rep(c(0,1,2),df.aa.controls)
+x <- c(rep(1,sum(df.aa.cases)),
+       rep(0,sum(df.aa.controls)))
+y <- c(df.aa.cases.rep,df.aa.controls.rep)
+length(x)
+length(y)
+r <- cor(x,y)
+r
+n <- sum(con.tab.geno)
+A <- n*(r^2)
+A
+pvalue <- pchisq(A,df=1,lower.tail=FALSE)
+pvalue
+```
+
+* Reference distribution: Chi-square
+* p-value = 0.0001082287
+
+p-value is very close to zero, which means evidence for association.
+
+**Ex 6** Test for association between genotype and disease status by a logistic regression of disease status on genotype, treating the latter as categorical. Do you 
+find significant evidence for association? Which allele increase the risk for the 
+disease? Give the odds ratios of the genotypes with respect to base line genotype 
+_mm_. Provide 95% confidence intervals for these odds ratios.
+
+```{r, cache=TRUE}
+cas <- rep(c("MM","Mm","mm"),con.tab.geno[1,])
+con <- rep(c("MM","Mm","mm"),con.tab.geno[2,])
+ncas <- length(cas)
+ncon <- length(con)
+y <- c(rep(1,ncas),rep(0,ncon))
+x <- factor(c(cas,con))
+out.lm <- glm(y~x, family = binomial(link = "logit"))
+summary(out.lm)
+or <- exp(coefficients(out.lm))
+```
+
+Allele Mm has a higher risk of contracting the disease. (Pr(>|z|) = 0.001251).
+
+```{r, include=FALSE}
+ll.logodds <- log(or) - qnorm(0.95)*se.lor
+ul.logodds <- log(or) + qnorm(0.95)*se.lor
+ll.odds <- exp(ll.logodds)
+ul.odds <- exp(ul.logodds)
+ll.odds
+ul.odds
+```
+
+
+
+
+```{r, include=FALSE}
+#.rs.restartR()
+rm(list=ls())
+```
+
+# Relatedness research
+
+**Ex 1** The file \href{http://www-eio.upc.es/~jan/data/bsg/CHD.zip}{CHD.zip}
+contains genotype information, in the form of PLINK files **chd.fam**, **chd.bed** and **chd.bim**. The files contain genetic information of 109 presumably unrelated
+individuals of a sample of Chinese in Metropolitan Denver, CO, USA, and corresponds to the CHD sample of the 1,000 Genomes project (www.internationalgenome.org).
+
+**Ex 2** The **chd.bed** contains the genetic data in binary form. First convert the **.bed** file to a text file, **chd.raw**, with the data in (0, 1, 2) format, using the PLINK instruction:
+\begin{verbatim}
+plink --bfile CHD --recodeA --out CHD
+\end{verbatim}
+
+```{r, cache=TRUE}
+system("./plink.exe --bfile CHD --recodeA --out CHD")
+```
+
+**Ex 3** Read the genotype data in (0, 1, 2) format into the R environment. Consult the pedigree information. Are there any documented family relationships for this data set? 
+
+```{r, cache=TRUE}
+df <- fread("CHD.raw",data.table = FALSE)
+df[1:5,1:6]
+```
+
+There is only information on the sex of each individual, nothing else. No family relationships are contained in the dataset.
+
+**Ex 4** Compute the Manhattan distance between the inviduals on the basis of the genetic data. Use classical metric multidimensional scaling to obtain a map of the indivuals. Are the data homogeneous? Identify possible outliers.
+
+```{r, cache=TRUE}
+gendata <- df[,7:ncol(df)]
+sum(is.na(gendata))
+Dobs <- as.matrix(dist(gendata, method = "manhattan"))
+Dobs[1:5,1:5]
+```
+
+```{r, cache=TRUE}
+n <- nrow(gendata) # number of individuals
+p <- ncol(gendata) # number of variants
+mds.fit <- cmdscale(Dobs,eig=TRUE,k=n-1) # k is the max dimension
+X <- mds.fit$points[,1:2]
+par(pty="s") # square
+plot(X[,1],X[,2],xlab="x",ylab="y",main="Metric MDS",type="n",asp=1)
+text(X[,1],X[,2],labels="x",cex=.7)
+```
+
+We clearly observe that most of the individuals are related to a larger group (upper-right), while there are two smaller groups that are independent from one another. There are three different groups in total.
+
+**Ex 5** Compute the average number of alleles shared between each pair of individuals over all genetic variants. Compute also the corresponding standard deviation. Plot the standard deviation against the mean. Do you think there are any pairs with a close family relationship? How many? Identify the corresponding individuals.
+
+```{r, cache=TRUE}
+gen.matrix <- as.matrix(gendata)
+ibs.mean <- function(x,y) {
+   y <- mean(2 - abs(x - y),na.rm=TRUE)
+   return(y)
+}
+ibs.sd <- function(x,y) {
+   y <- sd(abs(x-y),na.rm=TRUE)
+   return(y)
+}
+#ibs.mean(gen.matrix[1,],gen.matrix[2,])
+#ibs.sd(gen.matrix[1,],gen.matrix[2,])
+
+ibs.mean.matrix <- matrix(nrow=n,ncol=n)
+ibs.sd.matrix <- matrix(nrow=n,ncol=n)
+for(i in 1:n) {
+  for(j in 1:n) {
+    ibs.mean.matrix[i,j] <- ibs.mean(gen.matrix[i,],gen.matrix[j,])
+    ibs.sd.matrix[i,j] <- ibs.sd(gen.matrix[i,],gen.matrix[j,])
+  }
+}
+ibs.mean.matrix[1:5,1:5]
+ibs.sd.matrix[1:5,1:5]
+```
+
+```{r, cache=TRUE}
+ibs.m <- ibs.mean.matrix[lower.tri(ibs.mean.matrix)]
+ibs.s <- ibs.sd.matrix[lower.tri(ibs.sd.matrix)]
+plot(ibs.m,ibs.s,xlim=c(1,2),ylim=c(0,1),xlab="m",ylab="s",main="Mean (m) vs. Standard deviation (s)")
+```
+
+```{r, cache=TRUE}
+which(ibs.mean.matrix >= 1.3 & ibs.mean.matrix < 2, arr.ind = TRUE)
+#which(ibs.sd.matrix <= 0.6 & ibs.sd.matrix > 0, arr.ind = TRUE)
+```
+
+Pairs of individuals whose coordinates are in the list above have larger allele sharing average compared to the main subgroup, which means a closer family relationship. These three pairs are:
+
+```{r, cache=TRUE}
+print(paste(df[18,1], "and", df[3,1]))
+print(paste(df[17,1], "and", df[12,1]))
+print(paste(df[89,1], "and", df[62,1]))
+```
+
+**Ex 6** Make a plot of the percentage of variants sharing no alleles versus the percentage of variants sharing two alleles for all pairs of individuals. Do you think there are any pairs with a close family relationship? How many? Identify the corresponding individuals.
+
+```{r, cache=TRUE}
+gen.matrix[1:5,1:5]
+
+stats <- function(x,y) {
+  aux <- 2-abs(x-y) # number of shared alleles
+  n0 <- sum(aux==0,na.rm=TRUE)
+  n1 <- sum(aux==1,na.rm=TRUE)
+  n2 <- sum(aux==2,na.rm=TRUE)
+  n <- sum(!is.na(aux))
+  p0 <- n0/n
+  p1 <- n1/n
+  p2 <- n2/n
+  y <- c(p0,p1,p2)
+  return(y)
+}
+
+sum(stats(gen.matrix[1,],gen.matrix[2,]))
+
+Mp0 <- matrix(NA,nrow=n,ncol=n)
+Mp1 <- matrix(NA,nrow=n,ncol=n)
+Mp2 <- matrix(NA,nrow=n,ncol=n)
+
+for(i in 1:n) {
+   for(j in 1:n) {
+      statsofapair <- stats(gen.matrix[i,],gen.matrix[j,])
+      Mp0[i,j] <- statsofapair[1]
+      Mp1[i,j] <- statsofapair[2]
+      Mp2[i,j] <- statsofapair[3]
+   }
+}
+
+p0vec <- Mp0[lower.tri(Mp0)]
+p2vec <- Mp2[lower.tri(Mp2)]
+
+plot(jitter(p0vec,amount=.005),p2vec,asp=1,xlab="p0",ylab="p2",main="Prob. of markers with 0 (p0) vs. 2 (p2) shared IBS alleles")
+```
+
+```{r, cache=TRUE}
+which(Mp2 >= 0.4 & Mp2 < 1, arr.ind = TRUE)
+```
+
+We have found the same three pairs of individuals that have a stronger relationship compared to the main sub-group. These pairs of users have at least 40% of their variants with two shared alleles:
+
+```{r, cache=TRUE}
+print(paste(df[18,1], "and", df[3,1]))
+print(paste(df[17,1], "and", df[12,1]))
+print(paste(df[89,1], "and", df[62,1]))
+```
+
+**Ex 7** Can you identify any obvious family relationships between any pairs? Argue your answer.
+
+According to  mean vs. std and p vs. p2 results, the following pairs of individuals might have some kind of family relationship:
+
+* "NA17986 and NA17981"
+* "NA17980 and NA18150"
+* "NA18116 and NA17976"
+
+They have a larger allele sharing average, and have at least 40% of their variants with two shared alleles.
+
+**Ex 8** Estimate the *Cotterman coefficients* for all pairs using PLINK. Read the coeffients into the R environment and plot the probability of sharing no IBD alleles against the probability of sharing one IBD allele. Add the theoretical values of the Cotterman coefficients for standard relationships to your plot. 
+
+```{r, cache=TRUE}
+system("./plink.exe --bfile CHD --genome --genome-full --out CHD")
+CHD.genome <- read.table("CHD.genome",header=TRUE)
+plot(CHD.genome$Z0,CHD.genome$Z1,asp=1,xlab=expression(k[0]),ylab=expression(k[1]),main="IBD prob. of sharing 0 (k0) vs. 1 (k1) IBS alleles")
+```
+
+
+**Ex 9** Make a table of pairs for which you suspect that they have a close family relationship, and list their Cotterman coefficients. State your final conclusions about what relationship these pairs probably have.
+
+```{r, cache=TRUE}
+which(CHD.genome$Z1 >= 0.4, arr.ind = TRUE)
+which(CHD.genome$Z0 <= 0.6, arr.ind = TRUE)
+```
+
+According to k0, k1 results, he following pairs of individuals might have some kind of family relationship (with their Cotterman coefficients):
+
+```{r, cache=TRUE}
+print(paste(CHD.genome[230,1], "and", CHD.genome[230,3], ", with k0=", CHD.genome[230,7], " and k1=", CHD.genome[230,8]))
+print(paste(CHD.genome[1138,1], "and", CHD.genome[1138,3], ", with k0=", CHD.genome[1138,7], " and k1=", CHD.genome[1138,8]))
+print(paste(CHD.genome[4785,1], "and", CHD.genome[4785,3], ", with k0=", CHD.genome[4785,7], " and k1=", CHD.genome[4785,8]))
+```
+
+**Ex 10** Is there any relationship between the MDS map and the relationships between the individuals? Report your findings.
+
+```{r, cache=TRUE}
+X[18,1]
+X[3,2]
+
+X[17,1]
+X[12,2]
+
+X[89,1]
+X[62,2]
+```
+
+* "NA17981 and NA17986" have MDS values -13195.59 and -565.9969
+* "NA18150 and NA17980" have MDS values 442.563 and 337.7617
+* "NA17976 and NA18116" have MDS values 754.5546 and 12700.07
+
+These pairs are the ones that are located the further from the main sub-group in the MDS plot, which means a higher probability of family relationship. This conclusion is the same that we can obtain from $(m,s)$, $(p_0,p_2)$ or $(k_0,k_1)$ plots previously calculated.
+
+**Ex 11** Which of the three graphics $(m,s)$, $(p_0,p_2)$ or $(k_0,k_1)$ do you like best for identifying relationships? Argue your answer. 
+
+The three representations show the relationships in a similar way. Given that $(p_0,p_2)$ plot and $(k_0,k_1)$ plot leave out one of the three proportions, we would use the $(m,s)$ representation, in which high MAF variants are more informative for discriminating relationship categories.
+
+
+
+
+
+
+
